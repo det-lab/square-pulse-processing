@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import RigolWFM.wfm as rigol
 
-def load_and_plot(filename="data/NewFile1.wfm"):
+def load_and_plot(filename):
     # Read the CSV file
     scope_data = rigol.Wfm.from_file(filename, '1000Z')
 
@@ -11,7 +11,7 @@ def load_and_plot(filename="data/NewFile1.wfm"):
         print(ch)
         plt.plot(ch.times, ch.volts, label=ch.name)
     plt.legend()
-    plt.xlabel("Time (ns)")
+    plt.xlabel("Time (s)")
     plt.ylabel("Voltage (V)")
     plt.title(filename)
     plt.grid(True)
@@ -19,6 +19,6 @@ def load_and_plot(filename="data/NewFile1.wfm"):
     plt.show()
 
 
-load_and_plot("data/NewFile2.wfm")
+load_and_plot("C:\\Users\\canto\\Data\\500_micro_s\\sample_3.wfm")
 
 print("Done.")

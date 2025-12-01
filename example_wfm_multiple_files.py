@@ -1,41 +1,18 @@
-import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import poisson
-from analyze_single_photon_data import count_pulses_in_interval
+from analyze_single_photon_data import count_pulses_in_interval_multiple_files
 import numpy as np
-import RigolWFM.wfm as rigol
 
 # make the plots publication-ready
 plt.style.use('./mplstyles/standard.mplstyle')
 
-# point to your file
-wfm_filename = "C:\\Users\\canto\\Data\\500_micro_s\\sample_3.wfm" 
+# point to your files
+wfm_filenames = ["C:\\Users\\canto\\Data\\500_micro_s\\sample_1.wfm",
+                 "C:\\Users\\canto\\Data\\500_micro_s\\sample_2.wfm",
+                 "C:\\Users\\canto\\Data\\500_micro_s\\sample_3.wfm"]
 
-w = rigol.Wfm.from_file(wfm_filename, '1000Z')
-
-description = w.describe()
-print(description)
-
-ch = w.channels[0]
-print(ch.times)
-
-
-# compute timestep
-dt = ch.times[1] - ch.times[0]
-
-# check timestep
-if not np.isclose(dt, 1e-9):
-    raise ValueError(f"Unexpected timestep: {dt} s. Expected 1e-9 s.")
-
-# build a dataframe that has the right columns for
-# the function count_pulses_in_interval
-df = pd.DataFrame({
-    "time_s": ch.times,
-    "voltage_V": ch.volts  # assuming the channel voltage values are in ch.data
-})
-
-interval_results = count_pulses_in_interval(
-    df,
+interval_results = count_pulses_in_interval_multiple_files(
+    wfm_filenames,
     interval_length=0.001,   # 1 ms bins
     threshold=2.0            # half the 2 V pulse amplitude
 )

@@ -1,0 +1,4 @@
+NewFile1.csv filter=lfs diff=lfs merge=lfs -text
+NewFile1.wfm filter=lfs diff=lfs merge=lfs -text
+NewFile2.wfm filter=lfs diff=lfs merge=lfs -text
+scope_data.csv filter=lfs diff=lfs merge=lfs -text
