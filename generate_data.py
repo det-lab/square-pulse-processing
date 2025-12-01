@@ -1,99 +1,155 @@
+#!/usr/bin/env python3
 import numpy as np
 import pandas as pd
 
 
-def generate_pulse_times(duration_s, mean_time_between_pulses_s=0.01):
+# ================================================================
+#  Generate Poisson-distributed pulse start times
+# ================================================================
+def generate_pulse_times(mean_interval=0.01, total_time=0.1, seed=12345):
     """
-    Generate pulse trigger times (in sample indices = nanoseconds)
-    using exponential waiting times (Poisson process).
+    Generate a list of pulse times using a Poisson process.
+
+    mean_interval : mean time between pulses (seconds)
+    total_time    : total simulated time (seconds)
+    seed          : RNG seed for reproducibility
     """
 
-    total_samples = int(duration_s * 1e9)  # 1 ns per sample
-    expected_interval = mean_time_between_pulses_s * 1e9
+    rng = np.random.default_rng(seed)
 
     pulse_times = []
-    current_sample = 0
+    t = 0.0
 
-    while current_sample < total_samples:
-        wait = np.random.exponential(expected_interval)
-        current_sample += int(wait)
-        if current_sample < total_samples:
-            pulse_times.append(current_sample)
+    while t < total_time:
+        # Draw waiting time from exponential distribution
+        dt = rng.exponential(mean_interval)
+        t += dt
+        if t < total_time:
+            pulse_times.append(t)
 
-    return np.array(pulse_times, dtype=int)
+    return np.array(pulse_times)
 
 
-def generate_scope_data(
-        pulse_times,
-        duration_s,
-        noise_std=0.02,
-        pulse_amplitude=2.0,
-        pulse_duration_ns=10,
-        rise_time_ns=2,
-        filename="scope_data.csv"
-    ):
-    """
-    Generate oscilloscope-like data at 1 ns sampling, given pulse times.
-    Pulse times should be integer sample indices.
-    """
+# ================================================================
+#  Add pulses to the noise signal
+# ================================================================
+def add_square_pulses(times, voltages, pulse_times,
+                      amplitude=2.0,
+                      rise_time=2e-9,
+                      width=10e-9):
 
-    total_samples = int(duration_s * 1e9)
-    t = np.arange(total_samples)
+    total_pulse_duration = 2 * rise_time + width
 
-    # Background noise
-    voltage = np.random.normal(0, noise_std, size=total_samples)
+    for t0 in pulse_times:
 
-    pulse_width = pulse_duration_ns
-    rise = rise_time_ns
+        start = t0
+        end = t0 + total_pulse_duration
 
-    for pt in pulse_times:
-        start = pt
-        end = pt + pulse_width
-
-        if start >= total_samples:
+        mask = (times >= start) & (times < end)
+        if not mask.any():
             continue
-        if end >= total_samples:
-            end = total_samples - 1
 
-        # --- Pulse shape ---
-        # Rise
-        ramp_end = min(start + rise, total_samples)
-        if ramp_end > start:
-            voltage[start:ramp_end] += np.linspace(0, pulse_amplitude, ramp_end - start)
+        # Index array of where the mask applies
+        idx = np.where(mask)[0]
 
-        # Flat top
-        flat_start = ramp_end
-        flat_end = min(start + pulse_width - rise, total_samples)
-        if flat_end > flat_start:
-            voltage[flat_start:flat_end] += pulse_amplitude
+        t_relative = times[idx] - start
 
-        # Fall
-        fall_start = flat_end
-        fall_end = min(fall_start + rise, total_samples)
-        if fall_end > fall_start:
-            voltage[fall_start:fall_end] += np.linspace(pulse_amplitude, 0, fall_end - fall_start)
+        # --- Rising edge
+        rising_mask = (t_relative < rise_time)
+        voltages[idx[rising_mask]] += amplitude * (
+            t_relative[rising_mask] / rise_time
+        )
 
-    # Save CSV
-    df = pd.DataFrame({"time_ns": t, "voltage": voltage})
+        # --- Flat top
+        flat_mask = (t_relative >= rise_time) & (t_relative < rise_time + width)
+        voltages[idx[flat_mask]] += amplitude
+
+        # --- Falling edge
+        falling_mask = (t_relative >= rise_time + width)
+        t_fall = t_relative[falling_mask] - (rise_time + width)
+        voltages[idx[falling_mask]] += amplitude * (
+            1 - (t_fall / rise_time)
+        )
+
+    return voltages
+
+
+
+# ================================================================
+#  Generate oscilloscope-like data
+# ================================================================
+def generate_scope_data(
+    total_time=0.1,
+    sample_rate=1e9,      # 1 sample = 1 ns
+    noise_std=0.05,
+    rng_seed=999,
+    pulse_times=None,
+    pulse_amplitude=2.0,
+    rise_time=2e-9,
+    width=10e-9,
+):
+    """
+    Generate random oscilloscope-like data with noise and pulses.
+    """
+
+    rng = np.random.default_rng(rng_seed)
+
+    num_samples = int(total_time * sample_rate)
+
+    # Time axis
+    times = np.arange(num_samples) / sample_rate
+
+    # Noise around zero
+    voltages = rng.normal(0.0, noise_std, num_samples)
+
+    # Add pulses if provided
+    if pulse_times is not None:
+        voltages = add_square_pulses(
+            times, voltages, pulse_times,
+            amplitude=pulse_amplitude,
+            rise_time=rise_time,
+            width=width
+        )
+
+    return times, voltages
+
+
+# ================================================================
+#  Save to CSV
+# ================================================================
+def save_to_csv(filename, times, voltages):
+    df = pd.DataFrame({"time_s": times, "voltage_V": voltages})
     df.to_csv(filename, index=False)
+    print(f"Saved: {filename}")
 
-    print(f"Saved {total_samples:,} samples to {filename}")
 
+# ================================================================
+#  Example usage
+# ================================================================
+# Simulation settings
+TOTAL_TIME = 0.05     # 50 ms simulated
+MEAN_INTERVAL = 0.001   # average 10 ms between pulses
+SEED = 42
 
-# -------------
-# Example usage 
-# -------------
-duration = 0.02  # 20 milliseconds
-
-# Step 1: generate pulse times
-pulses = generate_pulse_times(duration_s=duration, mean_time_between_pulses_s=0.01)
-
-# Step 2: generate the oscilloscope data file
-generate_scope_data(
-    pulse_times=pulses,
-    duration_s=duration,
-    noise_std=0.01,
-    filename="scope_with_pulses.csv"
+# Generate pulse times
+pulse_times = generate_pulse_times(
+    mean_interval=MEAN_INTERVAL,
+    total_time=TOTAL_TIME,
+    seed=SEED
 )
 
-print("Done.")
+# Generate waveform
+times, volts = generate_scope_data(
+    total_time=TOTAL_TIME,
+    sample_rate=1e9,
+    noise_std=0.05,
+    rng_seed=1337,
+    pulse_times=pulse_times,
+    pulse_amplitude=2.0,
+    rise_time=2e-9,
+    width=10e-9,
+)
+
+# Save
+save_to_csv("scope_data.csv", times, volts)
+
