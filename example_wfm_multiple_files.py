@@ -28,7 +28,20 @@ bin_edges = np.arange(0, max_count + 2)  # left edges of integer bins
 bin_width = 1
 
 hist_counts, _ = np.histogram(pulse_counts, bins=bin_edges)
-errors = np.sqrt(hist_counts)  # Poisson uncertainty
+# Poisson uncertainty is sqrt(num_counts) as long as num_counts is greater than 5
+# However this is badly inacurrate for num_counts less than three
+# and for num_counts = 0, will throw off a fit badly because 
+# it incorrectly claims the error is np.sqrt(0) = 0
+# The correct way to do this is using Feldman-Cousins intervals
+# But this isn't a statistics class!
+# So instead we're using the formula
+# error = np.sqrt(num_counts) for num_counts >= 4
+# error = np.sqrt(num_counts + 1) for num_counts <= 3
+# This will keep fits reasonably well behaved
+errors = np.where(hist_counts <= 3,
+                  np.sqrt(hist_counts + 1),
+                  np.sqrt(hist_counts))
+
 
 # Bin centers for error bars
 x_centers = bin_edges[:-1] + 0.5
