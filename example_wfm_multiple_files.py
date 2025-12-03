@@ -2,19 +2,20 @@ import matplotlib.pyplot as plt
 from scipy.stats import poisson
 from analyze_single_photon_data import count_pulses_in_interval_multiple_files
 import numpy as np
+import os
 
 # make the plots publication-ready
 plt.style.use('./mplstyles/standard.mplstyle')
 
 # point to your files
-wfm_filenames = ["C:\\Users\\canto\\Data\\500_micro_s\\sample_1.wfm",
-                 "C:\\Users\\canto\\Data\\500_micro_s\\sample_2.wfm",
-                 "C:\\Users\\canto\\Data\\500_micro_s\\sample_3.wfm"]
+file_directory = "C:\\Users\\canto\\Data\\optics-capstone\\disk2\\Uncovered\\"
+filelist = [f"NewFile{i}.wfm" for i in range(1, 6)]
+full_paths = [os.path.join(file_directory, fname) for fname in filelist]
 
 interval_results = count_pulses_in_interval_multiple_files(
-    wfm_filenames,
+    full_paths,
     interval_length=0.001,   # 1 ms bins
-    threshold=2.0            # half the 2 V pulse amplitude
+    threshold=3.0            # half the 2 V pulse amplitude
 )
 
 pulse_counts = interval_results["pulse_count"].values
